@@ -56,12 +56,12 @@ nypd_shooting_incidents
 ### Which borough has the most shooting incidents?
 ```{r}
 # Count incidents per borough  
-incident_by_borough <- nypd_shooting_incidents %>%
+incidents_by_borough <- nypd_shooting_incidents %>%
 group_by(BORO) %>%  
 summarize(count = n()) 
 
 # Create the bar chart
-ggplot(incident_by_borough, aes(x = BORO, y = count, fill = BORO)) +
+ggplot(incidents_by_borough, aes(x = BORO, y = count, fill = BORO)) +
   geom_bar(stat = "identity") +
   labs(
     title = "Number of Shooting Incidents Per Borough",
@@ -88,22 +88,22 @@ sum(is.na(nypd_shooting_incidents$OCCUR_DATE))
 sum(is.na(nypd_shooting_incidents$BORO))
 
 # Calculate the number of incidents per borough and year
-agg_data <- nypd_shooting_incidents %>%
+incidents_by_borough <- nypd_shooting_incidents %>%
   group_by(BORO, Year) %>%
   summarize(Incidents = n()) %>%
   filter(!is.na(BORO))  
 
-# Check the aggregated data
-head(agg_data)
+# Check the incidents
+head(incidents_by_borough)
 
 # Fit the linear regression model
-lm_model <- lm(Incidents ~ Year * BORO, data = agg_data)
+lm_model <- lm(Incidents ~ Year * BORO, data = incidents_by_borough)
 
 # Summary of the model
 summary(lm_model)
 
 # Create plot of the incidents per borough over time
-ggplot(agg_data, aes(x = Year, y = Incidents, color = BORO)) +
+ggplot(incidents_by_borough, aes(x = Year, y = Incidents, color = BORO)) +
   geom_line() +
   geom_point() +
   labs(title = "Number of Shooting Incidents per Borough Over Time",
@@ -112,29 +112,22 @@ ggplot(agg_data, aes(x = Year, y = Incidents, color = BORO)) +
   theme_minimal() +
   theme(legend.title = element_blank())
   
-# Transform Data to Scatter Plot with Single Linear Regression Line
+# Transform Data to Scatter Plot with Single Linear Regression Line to get Total Number of Incidents Over Time
 
-# Clean, tidy, and convert data
-nypd_shooting_incidents$OCCUR_DATE <- as.Date(nypd_shooting_incidents$OCCUR_DATE, format="%m/%d/%Y")
-
-nypd_shooting_incidents$Year <- as.numeric(format(nypd_shooting_incidents$OCCUR_DATE, "%Y"))
-
-nypd_shooting_incidents$BORO <- as.factor(nypd_shooting_incidents$BORO)
-
-# Aggregate data by borough and year
-agg_data <- nypd_shooting_incidents %>%
+# Count the number of incidents per year
+incidents_by_year <- nypd_shooting_incidents %>%
   group_by(Year) %>%
   summarize(Incidents = n()) %>%
   filter(!is.na(Year)) 
 
 # Fit the linear regression model
-lm_model <- lm(Incidents ~ Year, data = agg_data)
+lm_model <- lm(Incidents ~ Year, data = incidents_by_year)
 
 # Summary of the model
 summary(lm_model)
 
-# Create the scatterplot with the regression line
-ggplot(agg_data, aes(x = Year, y = Incidents)) +
+#Create scatter plot with single linear regression line
+ggplot(incidents_by_year, aes(x = Year, y = Incidents)) +
   geom_point(color = "blue", size = 2) + 
   geom_smooth(method = "lm", se = FALSE, color = "red", size = 1) + 
   labs(title = "Number of Shooting Incidents Over Time (All Boroughs Combined)",
@@ -148,11 +141,11 @@ The linear regression model shows that over time, the amount of shooting inciden
 ### How old are the perpetrators and victims of each incident?
 ```{r}  
 # Clean and tidy data
-data_clean <- nypd_shooting_incidents %>%
+nypd_shooting_incidents <- nypd_shooting_incidents %>%
   filter(!is.na(PERP_AGE_GROUP), !is.na(VIC_AGE_GROUP))
 
 # Put age groups into their bins
-data_clean <- data_clean %>%
+nypd_shooting_incidents <- nypd_shooting_incidents %>%
   mutate(
     PERP_AGE_GROUP = case_when(
       PERP_AGE_GROUP < 18 ~ "<18",
@@ -170,7 +163,7 @@ data_clean <- data_clean %>%
       TRUE ~ "Unknown"))
 
 # Count the number of incidents
-age_group_counts <- data_clean %>%
+age_group_counts <- nypd_shooting_incidents %>%
   group_by(PERP_AGE_GROUP, VIC_AGE_GROUP) %>%
   summarize(count = n()) %>%
   ungroup()
@@ -191,6 +184,6 @@ ggplot(age_group_counts, aes(x = PERP_AGE_GROUP, y = count, group = VIC_AGE_GROU
 
 The most incidents occur between a perpetrator between the ages of 25-44 and a victim between the same ages of 25-44.
 
-## Bias
+## Bias and Analysis
 
-This data does not include population of each borough or other statistics that could influence the rate of crime and explain why Brooklyn has the most incidents or why each borough experienced an increase in incidents around the same time, right before 2020, before they all expereinced a decrease again. Additionally, when looking at the ages of the perpetrators and victims, I did not include any incidents where age was recorded as "NA", therefore, results might not be completely accurate due to that missing data. However, even with the missing data, the graph should still depict relative trends between the age groups.
+Overall, you can see the most incidents occur between a perpetrator between the ages of 25-44 and a victim between the same ages of 25-44, and that the most incidents occur in Brooklyn. You can also see that over time, the overall number of incidents has decreased. This data, however, does not include the population of each borough or other statistics that could influence the rate of crime and explain why Brooklyn has the most incidents or why each borough experienced an increase in incidents around the same time, right before 2020, before they all experienced a decrease again right after 2021. Additionally, when looking at the ages of the perpetrators and victims, I did not include any incidents where age was recorded as "NA", therefore, results might not be completely accurate due to that missing data. However, even with the missing data, the graph should still depict relative trends between the age groups.
