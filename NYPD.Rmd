@@ -1,0 +1,196 @@
+---
+title: "NYPD Shooting Incident Data"
+author: "D. Downey"
+date: "2024-12-07"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r include = FALSE}
+library(tidyverse)
+```
+
+## NYPD Shooting Incident data from the csv file.
+
+```{r get_jhu_data}
+## Get current Data from the NYPD file
+url_in <- 
+"https://data.cityofnewyork.us/api/views/833y-fsy8/rows.csv?accessType=DOWNLOAD"
+urls <- c("https://data.cityofnewyork.us/api/views/833y-fsy8/rows.csv?accessType=DOWNLOAD")
+```
+
+
+## Read in the data and see what we have.
+
+Please note, the next code chunk is not reproducible, but was the only way I could get around SSL issues. For reproducible results, try the following instead. Use this reproducible code anywhere needed to import data throughout this Rmd.
+
+`url_in <- 
+"https://data.cityofnewyork.us/api/views/833y-fsy8/rows.csv?accessType=DOWNLOAD"
+urls <- c("https://data.cityofnewyork.us/api/views/833y-fsy8/rows.csv?accessType=DOWNLOAD")
+urls
+nypd_shooting_incidents <- read_csv(urls[1])`
+
+```{r import_data, messgae = FALSE}
+nypd_shooting_incidents <- read_csv("/Users/delaneydowney/Downloads/NYPD_Shooting_Incident_Data__Historic_.csv")
+```
+
+## Put each variable in their own column.
+
+```{r tidy_shooting_data}
+nypd_shooting_incidents <- nypd_shooting_incidents %>%
+  select(-c(Latitude, Longitude, INCIDENT_KEY, Lon_Lat, X_COORD_CD, Y_COORD_CD))
+
+nypd_shooting_incidents <- nypd_shooting_incidents %>%
+  select(c(OCCUR_DATE, BORO, PERP_AGE_GROUP, PERP_SEX, PERP_RACE, VIC_AGE_GROUP, VIC_SEX, VIC_RACE, STATISTICAL_MURDER_FLAG))
+
+nypd_shooting_incidents
+```
+
+## Questions for Analysis
+
+### Which borough has the most shooting incidents?
+```{r}
+# Count incidents per borough  
+incident_by_borough <- nypd_shooting_incidents %>%
+group_by(BORO) %>%  
+summarize(count = n()) 
+
+# Create the bar chart
+ggplot(incident_by_borough, aes(x = BORO, y = count, fill = BORO)) +
+  geom_bar(stat = "identity") +
+  labs(
+    title = "Number of Shooting Incidents Per Borough",
+    x = "Borough",
+    y = "Number of Incidents"
+  ) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) 
+```
+
+Brooklyn has the most shooting incidents.
+
+## Have the amount of incidents per borough changed over time?
+```{r}
+# Clean, tidy, and convert data
+nypd_shooting_incidents$OCCUR_DATE <- as.Date(nypd_shooting_incidents$OCCUR_DATE, format="%m/%d/%Y")
+
+nypd_shooting_incidents$Year <- as.numeric(format(nypd_shooting_incidents$OCCUR_DATE, "%Y"))
+
+nypd_shooting_incidents$BORO <- as.factor(nypd_shooting_incidents$BORO)
+
+# Check for any missing values
+sum(is.na(nypd_shooting_incidents$OCCUR_DATE))
+sum(is.na(nypd_shooting_incidents$BORO))
+
+# Calculate the number of incidents per borough and year
+agg_data <- nypd_shooting_incidents %>%
+  group_by(BORO, Year) %>%
+  summarize(Incidents = n()) %>%
+  filter(!is.na(BORO))  
+
+# Check the aggregated data
+head(agg_data)
+
+# Fit the linear regression model
+lm_model <- lm(Incidents ~ Year * BORO, data = agg_data)
+
+# Summary of the model
+summary(lm_model)
+
+# Create plot of the incidents per borough over time
+ggplot(agg_data, aes(x = Year, y = Incidents, color = BORO)) +
+  geom_line() +
+  geom_point() +
+  labs(title = "Number of Shooting Incidents per Borough Over Time",
+       x = "Year",
+       y = "Number of Incidents") +
+  theme_minimal() +
+  theme(legend.title = element_blank())
+  
+# Transform Data to Scatter Plot with Single Linear Regression Line
+
+# Clean, tidy, and convert data
+nypd_shooting_incidents$OCCUR_DATE <- as.Date(nypd_shooting_incidents$OCCUR_DATE, format="%m/%d/%Y")
+
+nypd_shooting_incidents$Year <- as.numeric(format(nypd_shooting_incidents$OCCUR_DATE, "%Y"))
+
+nypd_shooting_incidents$BORO <- as.factor(nypd_shooting_incidents$BORO)
+
+# Aggregate data by borough and year
+agg_data <- nypd_shooting_incidents %>%
+  group_by(Year) %>%
+  summarize(Incidents = n()) %>%
+  filter(!is.na(Year)) 
+
+# Fit the linear regression model
+lm_model <- lm(Incidents ~ Year, data = agg_data)
+
+# Summary of the model
+summary(lm_model)
+
+# Create the scatterplot with the regression line
+ggplot(agg_data, aes(x = Year, y = Incidents)) +
+  geom_point(color = "blue", size = 2) + 
+  geom_smooth(method = "lm", se = FALSE, color = "red", size = 1) + 
+  labs(title = "Number of Shooting Incidents Over Time (All Boroughs Combined)",
+       x = "Year",
+       y = "Number of Incidents") +
+  theme_minimal()
+```
+
+The linear regression model shows that over time, the amount of shooting incidents between all boroughs combined has actually decreased. Looking at the graph that separates this data into each borough, you can see each borough has followed a similar trend. There was an overall decrease in incidents until right before 2020, where there was a pretty steep increase before the incidents started to decrease again.
+
+### How old are the perpetrators and victims of each incident?
+```{r}  
+# Clean and tidy data
+data_clean <- nypd_shooting_incidents %>%
+  filter(!is.na(PERP_AGE_GROUP), !is.na(VIC_AGE_GROUP))
+
+# Put age groups into their bins
+data_clean <- data_clean %>%
+  mutate(
+    PERP_AGE_GROUP = case_when(
+      PERP_AGE_GROUP < 18 ~ "<18",
+      PERP_AGE_GROUP >= 18 & PERP_AGE_GROUP <= 24 ~ "18-24",
+      PERP_AGE_GROUP >= 25 & PERP_AGE_GROUP <= 44 ~ "25-44",
+      PERP_AGE_GROUP >= 45 & PERP_AGE_GROUP <= 64 ~ "45-64",
+      PERP_AGE_GROUP >= 65 ~ "65+",
+      TRUE ~ "Unknown" ),
+    VIC_AGE_GROUP = case_when(
+      VIC_AGE_GROUP < 18 ~ "<18",
+      VIC_AGE_GROUP >= 18 & VIC_AGE_GROUP <= 24 ~ "18-24",
+      VIC_AGE_GROUP >= 25 & VIC_AGE_GROUP <= 44 ~ "25-44",
+      VIC_AGE_GROUP >= 45 & VIC_AGE_GROUP <= 64 ~ "45-64",
+      VIC_AGE_GROUP >= 65 ~ "65+",
+      TRUE ~ "Unknown"))
+
+# Count the number of incidents
+age_group_counts <- data_clean %>%
+  group_by(PERP_AGE_GROUP, VIC_AGE_GROUP) %>%
+  summarize(count = n()) %>%
+  ungroup()
+
+# Create the line graph
+ggplot(age_group_counts, aes(x = PERP_AGE_GROUP, y = count, group = VIC_AGE_GROUP, color = VIC_AGE_GROUP)) +
+  geom_line(size = 1) + 
+  geom_point(size = 3) + 
+  labs(
+    title = "Number of Shooting Incidents by Perpetrator and Victim Age Group",
+    x = "Perpetrator Age Group",
+    y = "Number of Incidents",
+    color = "Victim Age Group"
+  ) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))  
+```
+
+The most incidents occur between a perpetrator between the ages of 25-44 and a victim between the same ages of 25-44.
+
+## Bias
+
+This data does not include population of each borough or other statistics that could influence the rate of crime and explain why Brooklyn has the most incidents or why each borough experienced an increase in incidents around the same time, right before 2020, before they all expereinced a decrease again. Additionally, when looking at the ages of the perpetrators and victims, I did not include any incidents where age was recorded as "NA", therefore, results might not be completely accurate due to that missing data. However, even with the missing data, the graph should still depict relative trends between the age groups.
